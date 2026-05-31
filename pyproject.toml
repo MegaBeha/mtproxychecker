@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mtproxy-checker"
+version = "0.1.0"
+description = "Telegram MTProxy health checker with secure and FakeTLS support."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "MTProxy Checker Contributors" }]
+keywords = ["telegram", "mtproxy", "mtproto", "proxy", "checker"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: Proxy Servers",
+    "Topic :: System :: Networking",
+]
+dependencies = ["cryptography>=41"]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.0",
+    "hatchling>=1.21",
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+mtproxy-check = "mtproxy_checker.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mtproxy_checker"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "docs",
+    "mtproxy_checker",
+    "tests",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+packages = ["mtproxy_checker"]
+warn_unreachable = true
