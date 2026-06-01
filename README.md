@@ -14,9 +14,6 @@ MTProto `req_pq_multi`, and verified `resPQ` nonce response.
 It supports raw 16-byte secrets, `dd` secure secrets, `ee` FakeTLS secrets, and
 extended hex/base64 proxy secrets used by Telegram clients.
 
-For a full code walkthrough, including the cryptography and protocol background,
-read [docs/architecture-and-cryptography.md](docs/architecture-and-cryptography.md).
-
 ## Install
 
 From a GitHub repository:
