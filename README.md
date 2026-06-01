@@ -1,5 +1,12 @@
 # MTProxy Checker
 
+[![CI](https://github.com/alimghmi/mtproxychecker/actions/workflows/ci.yml/badge.svg)](https://github.com/alimghmi/mtproxychecker/actions/workflows/ci.yml)
+![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Typed](https://img.shields.io/badge/typed-mypy-blue)
+![Ruff](https://img.shields.io/badge/lint%20and%20format-ruff-46aef7)
+
 MTProxy Checker validates Telegram MTProxy endpoints by doing the real relay
 health check: TCP connect, MTProxy obfuscated2 handshake, unauthenticated
 MTProto `req_pq_multi`, and verified `resPQ` nonce response.
@@ -108,6 +115,9 @@ python3 -m ruff format --check .
 python3 -m mypy mtproxy_checker
 python3 -m build
 ```
+
+The default test command includes coverage, writes `coverage.xml`, and enforces
+the current 100% line coverage floor.
 
 Live proxy checks are intentionally not part of the default tests.
 

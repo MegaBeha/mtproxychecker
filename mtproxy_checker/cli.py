@@ -184,5 +184,5 @@ def print_result(result: CheckResult, trace: bool = False) -> None:
     print(f"DOWN: {result.error_message or 'Invalid proxy input.'}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

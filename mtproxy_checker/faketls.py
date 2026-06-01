@@ -108,7 +108,7 @@ def make_faketls_client_hello(
     add_u16(out, padding_length)
     out += b"\x00" * padding_length
 
-    if len(out) != FAKETLS_CLIENT_HELLO_LEN:
+    if len(out) != FAKETLS_CLIENT_HELLO_LEN:  # pragma: no cover
         raise ProtocolError(f"bad FakeTLS ClientHello length: {len(out)}")
 
     digest = hmac.new(secret, bytes(out), hashlib.sha256).digest()

@@ -128,7 +128,7 @@ def decode_secret(secret: str) -> ParsedSecret:
                         .decode("ascii", "ignore")
                         .rstrip("\x00")
                     )
-                except ValueError:
+                except ValueError:  # pragma: no cover
                     domain = ""
 
             return ParsedSecret(
