@@ -1,10 +1,16 @@
 import io
 import logging
 import unittest
+from logging import LogRecord
 
 from mtproxy_checker import check_proxy
 from mtproxy_checker.cli import setup_logging
-from mtproxy_checker.logging import LOGGER_NAME, configure_cli_logging, get_logger
+from mtproxy_checker.logging import (
+    LOGGER_NAME,
+    StructuredFormatter,
+    configure_cli_logging,
+    get_logger,
+)
 
 
 class LoggingTests(unittest.TestCase):
@@ -48,3 +54,41 @@ class LoggingTests(unittest.TestCase):
         self.assertIn("event=unit_test_event", output)
         self.assertIn("target_host=example.com", output)
         self.assertIn("message=hello", output)
+
+    def test_json_logs_and_value_formatting(self) -> None:
+        stream = io.StringIO()
+        configure_cli_logging(logging.INFO, json_logs=True, stream=stream)
+
+        get_logger("json").info(
+            "hello world",
+            extra={"event": "json_event", "count": 3},
+        )
+
+        output = stream.getvalue()
+        self.assertIn('"event": "json_event"', output)
+        self.assertIn('"count": 3', output)
+
+        formatter = StructuredFormatter()
+
+        self.assertEqual(formatter._format_value(""), '""')
+        self.assertEqual(formatter._format_value("hello world"), '"hello world"')
+        self.assertEqual(formatter._format_value(3), "3")
+
+    def test_structured_formatter_without_extra_fields(self) -> None:
+        formatter = StructuredFormatter()
+        record = LogRecord(
+            name="mtproxy_checker.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="plain",
+            args=(),
+            exc_info=None,
+        )
+
+        self.assertIn("message=plain", formatter.format(record))
+
+    def test_get_logger_accepts_full_package_name(self) -> None:
+        logger = get_logger("mtproxy_checker.already_qualified")
+
+        self.assertEqual(logger.name, "mtproxy_checker.already_qualified")

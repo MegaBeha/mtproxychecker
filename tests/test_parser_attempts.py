@@ -88,10 +88,11 @@ class ParserTests(unittest.TestCase):
 
     def test_query_parser_preserves_plus(self) -> None:
         parsed = parse_query_preserve_plus(
-            "tg://proxy?server=example.com&port=443&secret=abc+def%2Bghi"
+            "tg://proxy?server=example.com&&flag&port=443&secret=abc+def%2Bghi"
         )
 
         self.assertEqual(parsed["secret"], "abc+def+ghi")
+        self.assertEqual(parsed["flag"], "")
 
     def test_parse_proxy_url(self) -> None:
         target = parse_proxy_url(

@@ -2,13 +2,17 @@ import hmac
 import struct
 import unittest
 from hashlib import sha256
+from unittest.mock import patch
 
 from mtproxy_checker.errors import ProtocolError
 from mtproxy_checker.faketls import (
     FAKETLS_APP_DATA_PREFIX,
     FAKETLS_CCS,
     FAKETLS_CLIENT_HELLO_LEN,
+    log_faketls_client_hello,
     make_faketls_client_hello,
+    make_grease_values,
+    validate_faketls_server_response,
 )
 from mtproxy_checker.models import Mode
 from mtproxy_checker.protocol import (
@@ -16,7 +20,7 @@ from mtproxy_checker.protocol import (
     make_obfuscated2_handshake,
     parse_res_pq,
 )
-from mtproxy_checker.transports import FakeTlsTransport
+from mtproxy_checker.transports import FakeTlsTransport, PlainTransport, recv_exact
 
 
 class FakeSocket:
@@ -40,6 +44,16 @@ class FakeSocket:
         self.sent += data
 
 
+def make_valid_faketls_response(secret: bytes, client_random: bytes) -> bytes:
+    response = bytearray(
+        b"\x16\x03\x03\x00\x26" + b"\x00" * 38 + FAKETLS_CCS + b"\x17\x03\x03\x00\x01x"
+    )
+    zeroed = bytearray(response)
+    zeroed[11:43] = b"\x00" * 32
+    response[11:43] = hmac.new(secret, client_random + bytes(zeroed), sha256).digest()
+    return bytes(response)
+
+
 class FakeTlsTests(unittest.TestCase):
     def test_client_hello_hmac_random(self) -> None:
         secret = bytes.fromhex("c96b6d60154b353e16b514651c87f15b")
@@ -59,6 +73,59 @@ class FakeTlsTests(unittest.TestCase):
 
         self.assertEqual(client_random[:28], digest[:28])
         self.assertEqual(client_random[28:32], struct.pack("<I", expected_tail))
+
+    def test_client_hello_rejects_bad_secret_length_and_uses_default_domain(
+        self,
+    ) -> None:
+        with self.assertRaises(ProtocolError):
+            make_faketls_client_hello(b"short", "example.com")
+
+        hello, _random = make_faketls_client_hello(
+            b"1" * 16,
+            "тест",
+            timestamp=1,
+        )
+
+        self.assertIn(b"www.google.com", hello)
+
+    def test_client_hello_uses_current_time_and_rejects_too_long_profile(
+        self,
+    ) -> None:
+        with patch("mtproxy_checker.faketls.time.time", return_value=123.0):
+            hello, client_random = make_faketls_client_hello(b"1" * 16, "example.com")
+
+        self.assertEqual(hello[11:43], client_random)
+
+        with (
+            patch("mtproxy_checker.faketls.FAKETLS_CLIENT_HELLO_LEN", 10),
+            self.assertRaises(ProtocolError),
+        ):
+            make_faketls_client_hello(b"1" * 16, "example.com")
+
+    def test_grease_values_avoid_adjacent_duplicates(self) -> None:
+        with patch("mtproxy_checker.faketls.os.urandom", return_value=b"\x00" * 7):
+            greases = make_grease_values()
+
+        self.assertEqual(greases[0], 0x0A)
+        self.assertEqual(greases[1], 0x1A)
+
+    def test_validate_faketls_server_response(self) -> None:
+        secret = b"1" * 16
+        client_random = b"r" * 32
+        response = make_valid_faketls_response(secret, client_random)
+
+        validate_faketls_server_response(secret, client_random, response)
+
+        with self.assertRaises(ProtocolError):
+            validate_faketls_server_response(secret, client_random, b"short")
+
+        with self.assertRaises(ProtocolError):
+            validate_faketls_server_response(
+                secret, client_random, response[:-1] + b"!"
+            )
+
+    def test_log_client_hello_helper(self) -> None:
+        log_faketls_client_hello("example.com", 517)
 
     def test_first_write_prefixes_ccs_and_splits_records(self) -> None:
         fake_socket = FakeSocket()
@@ -90,6 +157,87 @@ class FakeTlsTests(unittest.TestCase):
 
         self.assertEqual(transport.read_exact(5), b"abcde")
         self.assertEqual(transport.read_exact(1), b"f")
+
+    def test_read_exact_skips_ccs_and_rejects_bad_record_type(self) -> None:
+        transport = FakeTlsTransport(
+            FakeSocket(b"\x14\x03\x03\x00\x01\x01\x17\x03\x03\x00\x02ok"),
+            b"1" * 16,
+            "",
+        )
+
+        self.assertEqual(transport.domain, "www.google.com")
+        self.assertEqual(transport.read_exact(2), b"ok")
+
+        bad_transport = FakeTlsTransport(
+            FakeSocket(b"\x16\x03\x03\x00\x01x"),
+            b"1" * 16,
+            "example.com",
+        )
+
+        with self.assertRaises(ProtocolError):
+            bad_transport.read_exact(1)
+
+    def test_second_write_does_not_repeat_ccs(self) -> None:
+        fake_socket = FakeSocket()
+        transport = FakeTlsTransport(fake_socket, b"1" * 16, "example.com")
+
+        transport.write(b"one")
+        transport.write(b"two")
+
+        self.assertEqual(bytes(fake_socket.sent).count(FAKETLS_CCS), 1)
+
+    def test_handshake_success_and_failures(self) -> None:
+        secret = b"1" * 16
+        client_random = b"r" * 32
+        incoming = make_valid_faketls_response(secret, client_random)
+
+        with patch(
+            "mtproxy_checker.transports.make_faketls_client_hello",
+            return_value=(b"hello", client_random),
+        ):
+            transport = FakeTlsTransport(FakeSocket(incoming), secret, "example.com")
+            transport.handshake()
+
+        self.assertEqual(bytes(transport.sock.sent), b"hello")
+
+        cases = (
+            b"\x17\x03\x03\x00\x01x",
+            b"\x16\x03\x03\x00\x01x" + b"badccs",
+            b"\x16\x03\x03\x00\x01x" + FAKETLS_CCS + b"\x16\x03\x03\x00\x01x",
+        )
+
+        for case in cases:
+            with (
+                patch(
+                    "mtproxy_checker.transports.make_faketls_client_hello",
+                    return_value=(b"hello", client_random),
+                ),
+                self.assertRaises(ProtocolError),
+            ):
+                FakeTlsTransport(FakeSocket(case), secret, "example.com").handshake()
+
+    def test_plain_transport_and_recv_exact(self) -> None:
+        fake_socket = FakeSocket(b"hello", chunk_size=2)
+        transport = PlainTransport(fake_socket)
+
+        transport.write(b"out")
+        self.assertEqual(bytes(fake_socket.sent), b"out")
+        self.assertEqual(transport.read_exact(5), b"hello")
+
+        with self.assertRaises(ProtocolError):
+            recv_exact(FakeSocket(b"a"), 2)
+
+    def test_parse_tls_header_validation(self) -> None:
+        self.assertEqual(
+            FakeTlsTransport._parse_tls_header(b"\x17\x03\x03\x00\x05"),
+            (0x17, 5),
+        )
+
+        with self.assertRaises(ProtocolError):
+            FakeTlsTransport._parse_tls_header(b"bad")
+
+        with self.assertRaises(ProtocolError):
+            FakeTlsTransport._parse_tls_header(b"\x17\x01\x01\x00\x00")
 
 
 class ProtocolTests(unittest.TestCase):
