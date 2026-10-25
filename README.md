@@ -111,37 +111,11 @@ Stable public error messages include:
 `check_mtproxy` checks one proxy and one Telegram DC per invocation:
 
 ```bash
-check_mtproxy -H proxy.example.com --secret-file /path/to/proxy.secret
+check_mtproxy -H proxy.example.com --secret-file /etc/nagios/mtproxy/proxy.secret
 ```
 
-The file contains only the Telegram proxy secret (hex or base64), with an optional
-trailing newline. An `ee` FakeTLS secret includes the masking domain. Restrict file
-access to the account running the check; the secret is never a command argument.
-
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `-H`, `--hostname` | required | Proxy address or hostname |
-| `-p`, `--port` | `443` | Proxy TCP port |
-| `--secret-file` | required | File containing the proxy secret |
-| `-t`, `--timeout` | `10` | Overall check timeout, seconds |
-| `-w`, `--warning` | `2` | WARNING above this exchange time, seconds |
-| `-c`, `--critical` | `5` | CRITICAL above this exchange time, seconds |
-| `--dc` | `2` | Single Telegram DC to check, 1 through 5 |
-
-Exit codes are 0 (OK), 1 (WARNING), 2 (CRITICAL: connection/protocol failure or
-timeout), and 3 (UNKNOWN: invalid configuration, unreadable/invalid secret file or
-internal failure). At exactly a threshold the higher state is not triggered.
-The exchange time includes connecting and the MTProto request/response, not just
-network ping. Successful exchanges include Nagios performance data:
-
-```text
-OK - MTProxy FakeTLS, DC2, key_id=7c93a2b084ef, exchange 0.318s | time=0.318s;2;5;0;
-```
-
-The overall timeout also covers secret-file reads and DNS. The check runs in a
-child process that is terminated if the deadline expires. Worker errors and
-tracebacks are not forwarded to plugin output. Nagios handles scheduling, retries
-and notifications; the plugin does not send notifications itself.
+See the [Nagios installation guide](docs/nagios.md) for setup, options, exit codes
+and [configuration examples](examples/nagios/).
 
 ## Development
 
