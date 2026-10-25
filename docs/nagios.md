@@ -9,6 +9,9 @@ Requires Python 3.10+, venv/pip and Git. `cryptography` is installed automatical
 These examples use the `nagios` account; adjust paths and account names as needed.
 Install from this fork's plugin branch:
 
+The command that creates `proxy.secret` below is for first-time setup only.
+It overwrites an existing file; skip it if your key file already exists.
+
 ```bash
 sudo python3 -m venv /opt/check-mtproxy
 sudo /opt/check-mtproxy/bin/pip install 'git+https://github.com/MegaBeha/mtproxychecker.git@feat/nagios-plugin'
@@ -40,6 +43,13 @@ Copy [commands.cfg](../examples/nagios/commands.cfg) and
 Replace the example host/address and key path; adapt the `linux-server` and
 `generic-service` template names if necessary. Use an existing host instead of
 the example host definition if the proxy is already monitored.
+
+To change the port, timeout, thresholds or DC, edit the existing `command_line`
+in `commands.cfg`. For example:
+
+```text
+command_line    /opt/check-mtproxy/bin/check_mtproxy -H '$HOSTADDRESS$' --secret-file '$ARG1$' -p 8443 -t 15 -w 3 -c 7 --dc 4
+```
 
 Validate with `nagios -v /path/to/nagios.cfg`, then reload or restart your Nagios
 service. The example checks every 3 minutes, with 3 attempts; notifications follow
