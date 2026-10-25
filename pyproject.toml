@@ -37,6 +37,7 @@ dev = [
 
 [project.scripts]
 mtproxy-check = "mtproxy_checker.cli:main"
+check_mtproxy = "mtproxy_checker.nagios:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mtproxy_checker"]
